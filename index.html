@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Micro-Operation Flow Simulator (Sleek)</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-size: 32px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .diagram {
+      position: relative;
+      width: 1000px;
+      height: 500px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .node {
+      position: absolute;
+      border: 2px solid #38bdf8;
+      border-radius: 14px;
+      padding: 12px;
+      text-align: center;
+      background: rgba(30,58,138,0.8);
+      box-shadow: 0 0 12px rgba(56,189,248,0.6);
+      font-weight: 600;
+      font-size: 15px;
+      color: #e0f2fe;
+      transition: all 0.4s ease;
+    }
+    .highlight {
+      background: rgba(56,189,248,0.9);
+      color: #0f172a;
+      transform: scale(1.15);
+      box-shadow: 0 0 20px #38bdf8;
+    }
+    .arrow {
+      position: absolute;
+      height: 2px;
+      background: #38bdf8;
+      transform-origin: left center;
+      transition: all 0.6s ease;
+    }
+    #controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    select, button, input {
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 14px;
+      border: none;
+    }
+    select, input {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #38bdf8;
+    }
+    button {
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      color: #0f172a;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      transition: transform 0.3s ease;
+    }
+    button:hover {
+      transform: scale(1.1);
+    }
+    #steps {
+      font-size: 18px;
+      font-weight: 600;
+      padding: 12px 20px;
+      background: rgba(56,189,248,0.15);
+      border: 1px solid #38bdf8;
+      border-radius: 10px;
+      min-width: 400px;
+      text-align: center;
+      color: #e0f2fe;
+      box-shadow: 0 0 12px rgba(56,189,248,0.4);
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡  Micro-Operation Flow Simulator ⚡</h1>
+  <div class="diagram">
+    <div id="pc" class="node" style="top:20px; left:60px;">PC</div>
+    <div id="mar" class="node" style="top:120px; left:60px;">MAR</div>
+    <div id="mdr" class="node" style="top:220px; left:60px;">MDR</div>
+    <div id="ir" class="node" style="top:320px; left:60px;">IR</div>
+    <div id="r1" class="node" style="top:120px; left:320px;">R1 = 5</div>
+    <div id="r2" class="node" style="top:220px; left:320px;">R2 = 3</div>
+    <div id="y" class="node" style="top:120px; left:580px;">Y</div>
+    <div id="z" class="node" style="top:220px; left:580px;">Z</div>
+    <div id="alu" class="node" style="top:170px; left:800px; width:80px; background:rgba(56,189,248,0.2); color:#38bdf8;">⚙️ ALU</div>
+  </div>
+
+  <div id="controls">
+    <select id="operation">
+      <option value="add">ADD R1,R2</option>
+      <option value="sub">SUB R1,R2</option>
+      <option value="and">AND R1,R2</option>
+      <option value="or">OR R1,R2</option>
+    </select>
+    <input id="valR1" type="number" value="5" placeholder="R1 value">
+    <input id="valR2" type="number" value="3" placeholder="R2 value">
+    <button onclick="startSimulation()">▶ Run</button>
+  </div>
+
+  <div id="steps">Select operation and click Run</div>
+
+  <script>
+    let steps = [];
+    let currentStep = 0;
+
+    function clearHighlights() {
+      document.querySelectorAll(".node").forEach(el => el.classList.remove("highlight"));
+    }
+
+    function setRegisters(r1, r2) {
+      document.getElementById("r1").innerText = `R1 = ${r1}`;
+      document.getElementById("r2").innerText = `R2 = ${r2}`;
+      document.getElementById("y").innerText = "Y";
+      document.getElementById("z").innerText = "Z";
+    }
+
+    function buildSteps(op, r1, r2) {
+      let result;
+      switch(op) {
+        case "add": result = r1 + r2; break;
+        case "sub": result = r1 - r2; break;
+        case "and": result = r1 & r2; break;
+        case "or":  result = r1 | r2; break;
+      }
+      return [
+        { text: "PCout → MARin, Read", highlights: ["pc","mar"] },
+        { text: "MDRout → IRin", highlights: ["mdr","ir"] },
+        { text: "R1out → Y", highlights: ["r1","y"] },
+        { text: `R2out, Y ${op.toUpperCase()} R2 → Z (via ALU)`, highlights: ["r2","y","alu","z"], updateZ: result },
+        { text: "Zout → R1in (Result)", highlights: ["r1","z"], updateR1: result }
+      ];
+    }
+
+    function runStep() {
+      clearHighlights();
+      if (currentStep < steps.length) {
+        const step = steps[currentStep];
+        document.getElementById("steps").innerText = `Step ${currentStep + 1}: ${step.text}`;
+        step.highlights.forEach(id => {
+          const el = document.getElementById(id);
+          el.classList.add("highlight");
+        });
+        if (step.updateZ !== undefined) document.getElementById("z").innerText = `Z = ${step.updateZ}`;
+        if (step.updateR1 !== undefined) document.getElementById("r1").innerText = `R1 = ${step.updateR1}`;
+        currentStep++;
+        if (currentStep < steps.length) {
+          setTimeout(runStep, 2000);
+        } else {
+          document.getElementById("steps").innerText += " ✔ Completed";
+        }
+      }
+    }
+
+    function startSimulation() {
+      let op = document.getElementById("operation").value;
+      let r1 = parseInt(document.getElementById("valR1").value);
+      let r2 = parseInt(document.getElementById("valR2").value);
+      setRegisters(r1, r2);
+      steps = buildSteps(op, r1, r2);
+      currentStep = 0;
+      runStep();
+    }
+  </script>
+</body>
+</html>
